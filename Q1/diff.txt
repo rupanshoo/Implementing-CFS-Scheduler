@@ -1,1 +1,129 @@
-# The diff should be in the form of text (Not image).
+diff -Naur A3-linux-5.9.1/arch/x86/entry/syscalls/syscall_64.tbl OG-linux-5.9.1/arch/x86/entry/syscalls/syscall_64.tbl
+--- A3-linux-5.9.1/arch/x86/entry/syscalls/syscall_64.tbl	2020-11-30 09:28:02.509022610 -0800
++++ OG-linux-5.9.1/arch/x86/entry/syscalls/syscall_64.tbl	2020-10-16 23:31:22.000000000 -0700
+@@ -361,7 +361,6 @@
+ 437	common	openat2			sys_openat2
+ 438	common	pidfd_getfd		sys_pidfd_getfd
+ 439	common	faccessat2		sys_faccessat2
+-440	common	rtnice		sys_rtnice
+ 
+ #
+ # x32-specific system call numbers start at 512 to avoid cache impact
+diff -Naur A3-linux-5.9.1/include/linux/sched.h OG-linux-5.9.1/include/linux/sched.h
+--- A3-linux-5.9.1/include/linux/sched.h	2020-11-30 09:28:02.517023242 -0800
++++ OG-linux-5.9.1/include/linux/sched.h	2020-10-16 23:31:22.000000000 -0700
+@@ -460,7 +460,6 @@
+ 	u64				prev_sum_exec_runtime;
+ 
+ 	u64				nr_migrations;
+-	u64				rtnice;
+ 
+ 	struct sched_statistics		statistics;
+ 
+diff -Naur A3-linux-5.9.1/include/linux/syscalls.h OG-linux-5.9.1/include/linux/syscalls.h
+--- A3-linux-5.9.1/include/linux/syscalls.h	2020-11-30 09:28:02.521023558 -0800
++++ OG-linux-5.9.1/include/linux/syscalls.h	2020-10-16 23:31:22.000000000 -0700
+@@ -973,7 +973,6 @@
+ asmlinkage long sys_execveat(int dfd, const char __user *filename,
+ 			const char __user *const __user *argv,
+ 			const char __user *const __user *envp, int flags);
+-asmlinkage long sys_rtnice(long inputpid, long softrealtime);
+ asmlinkage long sys_userfaultfd(int flags);
+ asmlinkage long sys_membarrier(int cmd, int flags);
+ asmlinkage long sys_mlock2(unsigned long start, size_t len, int flags);
+diff -Naur A3-linux-5.9.1/kernel/sched/core.c OG-linux-5.9.1/kernel/sched/core.c
+--- A3-linux-5.9.1/kernel/sched/core.c	2020-11-30 09:28:02.537024822 -0800
++++ OG-linux-5.9.1/kernel/sched/core.c	2020-10-16 23:31:22.000000000 -0700
+@@ -3070,7 +3070,6 @@
+ 	p->se.prev_sum_exec_runtime	= 0;
+ 	p->se.nr_migrations		= 0;
+ 	p->se.vruntime			= 0;
+-	p->se.rtnice			= 0;
+ 	INIT_LIST_HEAD(&p->se.group_node);
+ 
+ #ifdef CONFIG_FAIR_GROUP_SCHED
+diff -Naur A3-linux-5.9.1/kernel/sched/fair.c OG-linux-5.9.1/kernel/sched/fair.c
+--- A3-linux-5.9.1/kernel/sched/fair.c	2020-11-30 09:28:02.545025454 -0800
++++ OG-linux-5.9.1/kernel/sched/fair.c	2020-10-16 23:31:22.000000000 -0700
+@@ -859,14 +859,6 @@
+ 
+ 	curr->sum_exec_runtime += delta_exec;
+ 	schedstat_add(cfs_rq->exec_clock, delta_exec);
+-	if(curr->rtnice!=0)
+-	{
+-		if(curr->rtnice>=delta_exec)
+-			curr->rtnice= curr->rtnice - delta_exec;
+-		else
+-			curr->rtnice=0;
+-		return;
+-	}
+ 
+ 	curr->vruntime += calc_delta_fair(delta_exec, curr);
+ 	update_min_vruntime(cfs_rq);
+@@ -6850,7 +6842,7 @@
+ static int
+ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se)
+ {
+-	s64 gran,rtdiff=curr->rtnice - se->rtnice, vdiff = curr->vruntime - se->vruntime;
++	s64 gran, vdiff = curr->vruntime - se->vruntime;
+ 
+ 	if (vdiff <= 0)
+ 		return -1;
+diff -Naur A3-linux-5.9.1/Makefile OG-linux-5.9.1/Makefile
+--- A3-linux-5.9.1/Makefile	2020-11-30 09:28:02.549025770 -0800
++++ OG-linux-5.9.1/Makefile	2020-10-16 23:31:22.000000000 -0700
+@@ -1094,7 +1094,7 @@
+ export MODULES_NSDEPS := $(extmod-prefix)modules.nsdeps
+ 
+ ifeq ($(KBUILD_EXTMOD),)
+-core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/ rtnice/
++core-y		+= kernel/ certs/ mm/ fs/ ipc/ security/ crypto/ block/
+ 
+ vmlinux-dirs	:= $(patsubst %/,%,$(filter %/, \
+ 		     $(core-y) $(core-m) $(drivers-y) $(drivers-m) \
+diff -Naur A3-linux-5.9.1/rtnice/Makefile OG-linux-5.9.1/rtnice/Makefile
+--- A3-linux-5.9.1/rtnice/Makefile	2020-11-30 09:28:02.549025770 -0800
++++ OG-linux-5.9.1/rtnice/Makefile	1969-12-31 16:00:00.000000000 -0800
+@@ -1 +0,0 @@
+-obj-y:=rtnice.o
+\ No newline at end of file
+diff -Naur A3-linux-5.9.1/rtnice/rtnice.c OG-linux-5.9.1/rtnice/rtnice.c
+--- A3-linux-5.9.1/rtnice/rtnice.c	2020-11-30 09:28:02.549025770 -0800
++++ OG-linux-5.9.1/rtnice/rtnice.c	1969-12-31 16:00:00.000000000 -0800
+@@ -1,35 +0,0 @@
+-#include <linux/kernel.h>
+-#include <linux/syscalls.h>
+-#include <linux/sched.h>
+-#include <linux/module.h>
+-
+-SYSCALL_DEFINE2(rtnice,long, inputpid,long,softrealtime)
+-{
+-	struct task_struct *taskStruct;
+-	int fl=0;
+-
+-	if(softrealtime<0)  //since negative time is not possible
+-	{
+-		printk("Invalid soft real time value");
+-		return 0;
+-	}
+-
+-	for_each_process(taskStruct)
+-	{
+-		if(inputpid==(long)taskStruct->pid)   //to check all processes and compare for input PID
+-		{
+-			fl=1;
+-			printk("Changed rt_nice value %s\n",taskStruct->comm);   //change to soft real time if PID found
+-			taskStruct->se.rtnice=softrealtime;
+-		}
+-	}
+-
+-	if(fl==0){  //input PID not found
+-		printk("No such process found\n");
+-		return 0;
+-	}
+-	else{
+-		printk("Process found, Check!!\n");
+-		return 1;	
+-	}
+-}
+\ No newline at end of file
