@@ -12,7 +12,7 @@ Roll no.- 2019096
 #include <sys/time.h>
 
 #define rtnice 440      //ID of the rtnice syscall
-#define checkVal 1000000000     
+#define checkVal 900000000     
 
 int main(int argc, char* argv[]){
     //user input to get soft real time
@@ -28,7 +28,7 @@ int main(int argc, char* argv[]){
         printf("Child process - %d\n",getpid());
 
         gettimeofday(&start_time_child,NULL);  //to record start time of task
-        for(int i=0;i<checkVal;i++);           //task to be performed
+        for(int i=checkVal;i>0;i--);           //task to be performed
         gettimeofday(&end_time_child,NULL);    //to record end time of task
 
         //tv.sec -> in seconds, tv.usec->in microseconds(10^-6)
@@ -42,7 +42,7 @@ int main(int argc, char* argv[]){
         long rt_Ret = syscall(rtnice, (long)getpid() ,sr_time);   //giving priority to parent process to finish faster
 
         gettimeofday(&start_time_parent,NULL);
-        for(int i=0;i<checkVal;i++);
+        for(int i=checkVal;i>0;i--);
         gettimeofday(&end_time_parent,NULL);
 
         printf("time with soft-realtime = %lf\n",(double)(end_time_parent.tv_usec - start_time_parent.tv_usec)/1000 + (double)(end_time_parent.tv_sec - start_time_parent.tv_sec)*1000);
